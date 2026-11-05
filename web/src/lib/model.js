@@ -25,7 +25,13 @@ export function loadModel(onProgress) {
   if (!sessionPromise) {
     sessionPromise = (async () => {
       ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
-      const res = await fetch(`${BASE}model/model.onnx`);
+      let res;
+      try {
+        res = await fetch(`${BASE}model/model.onnx`);
+      } catch {
+        // seltener Cache-Konflikt (z. B. Service Worker lädt parallel): einmal ohne HTTP-Cache wiederholen
+        res = await fetch(`${BASE}model/model.onnx`, { cache: 'no-store' });
+      }
       if (!res.ok) throw new Error(`model.onnx: HTTP ${res.status}`);
       const total = Number(res.headers.get('content-length')) || 0;
       let buf;
@@ -47,7 +53,9 @@ export function loadModel(onProgress) {
         buf = new Uint8Array(await res.arrayBuffer());
       }
       onProgress?.(1);
-      return ort.InferenceSession.create(buf, { executionProviders: ['wasm'], graphOptimizationLevel: 'all' });
+      const session = await ort.InferenceSession.create(buf, { executionProviders: ['wasm'], graphOptimizationLevel: 'all' });
+      window.dispatchEvent(new Event('modelready'));
+      return session;
     })().catch((e) => { sessionPromise = null; throw e; });
   }
   return sessionPromise;

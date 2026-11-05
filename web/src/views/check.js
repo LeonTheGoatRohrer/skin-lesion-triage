@@ -48,8 +48,8 @@ export async function mount(root, { query }) {
           ${spot ? `<p class="chip mb-3 bg-accent-soft text-accent">${icon('book', 'size-3.5')} ${tr('Neues Foto für', 'New photo for')}: ${esc(spot.name)}</p>` : ''}
           <h1 class="text-3xl font-bold tracking-tight md:text-4xl">${tr('Hautstelle prüfen', 'Check a skin spot')}</h1>
           <p class="mt-3 text-[15px] leading-relaxed text-muted">${tr(
-            'Fotografiere ein Muttermal oder eine Hautstelle. Ein neuronales Netz, trainiert auf über 80 000 Bildern aus dem ISIC-Archiv, schätzt ein, wie auffällig die Stelle aussieht – als Ampel und als Prozentzahl. Alles passiert in deinem Browser.',
-            'Take a photo of a mole or skin spot. A neural network trained on more than 80,000 images from the ISIC archive estimates how conspicuous the spot looks – as a traffic light and a percentage. Everything happens in your browser.')}</p>
+            'Fotografiere ein Muttermal oder eine Hautstelle. Ein neuronales Netz, trainiert auf rund 48 000 Bildern aus dem öffentlichen ISIC-Archiv, schätzt ein, wie auffällig die Stelle aussieht – als Ampel und als Prozentzahl. Alles passiert in deinem Browser.',
+            'Take a photo of a mole or skin spot. A neural network trained on about 48,000 images from the public ISIC archive estimates how conspicuous the spot looks – as a traffic light and a percentage. Everything happens in your browser.')}</p>
           <div class="mt-6 flex flex-wrap gap-3">
             <label class="btn btn-primary cursor-pointer">${icon('camera', 'size-5')} ${tr('Foto aufnehmen', 'Take photo')}
               <input type="file" accept="image/*" capture="environment" class="sr-only" data-input></label>
@@ -80,8 +80,8 @@ export async function mount(root, { query }) {
       <section class="card flex gap-4 p-5 text-sm">
         ${icon('shield', 'size-6 shrink-0 text-accent')}
         <div><p class="font-semibold">${tr('Privat by Design', 'Private by design')}</p>
-        <p class="mt-1 text-muted">${tr('Kein Upload, kein Konto, kein Tracking. Das Modell wird einmal geladen und rechnet danach lokal – auch offline. Gespeicherte Fotos liegen nur in deinem Browser.',
-          'No upload, no account, no tracking. The model is downloaded once and then computes locally – even offline. Saved photos stay in your browser only.')}</p></div>
+        <p class="mt-1 text-muted">${tr('Kein Upload, kein Konto, kein Tracking. Das Modell wird einmal geladen und rechnet danach lokal – auch offline. Gespeicherte Fotos liegen nur in deinem Browser. Tipp: Über „Zum Startbildschirm hinzufügen“ im Browser-Menü wird daraus eine App.',
+          'No upload, no account, no tracking. The model is downloaded once and then computes locally – even offline. Saved photos stay in your browser only. Tip: use “Add to Home Screen” in your browser menu to install it as an app.')}</p></div>
       </section>
     </div>`);
     view.querySelector('[data-left]').append(statusLine);
@@ -187,10 +187,11 @@ export async function mount(root, { query }) {
     const pLow = percentileOf(meta.rule.t_low, meta);
     const pHigh = percentileOf(meta.rule.t_high, meta);
     const p = result.percentile;
+    const shown = p >= 0.995 ? `> ${pct(0.99)}` : p <= 0.005 ? `< ${pct(0.01)}` : pct(p);
     return `<div class="mt-5">
       <div class="flex items-baseline justify-between">
         <span class="text-sm font-medium">${tr('Auffälligkeit', 'Conspicuousness')}</span>
-        <span class="text-2xl font-bold tabular">${pct(p)}</span>
+        <span class="text-2xl font-bold tabular">${shown}</span>
       </div>
       <div class="relative mt-2 h-3 overflow-hidden rounded-full" role="img" aria-label="${tr('Auffälligkeit', 'Conspicuousness')} ${pct(p)}">
         <div class="absolute inset-y-0 left-0 bg-zone-green" style="width:${pLow * 100}%;opacity:.75"></div>
@@ -199,8 +200,8 @@ export async function mount(root, { query }) {
       </div>
       <div class="relative h-4"><div class="absolute -top-1 -translate-x-1/2 text-fg" style="left:${Math.min(98.5, Math.max(1.5, p * 100))}%">▲</div></div>
       <p class="text-sm text-muted">${tr(
-        `Auffälliger als <strong class="text-fg">${pct(p)}</strong> der gutartigen Vergleichsfotos aus dem Validierungs-Datensatz.`,
-        `More conspicuous than <strong class="text-fg">${pct(p)}</strong> of benign reference photos from the validation set.`)}
+        `Auffälliger als <strong class="text-fg">${shown}</strong> der gutartigen Vergleichsfotos aus dem Validierungs-Datensatz.`,
+        `More conspicuous than <strong class="text-fg">${shown}</strong> of benign reference photos from the validation set.`)}
         <button class="underline decoration-dotted" data-why>${tr('Warum keine Krebs-Wahrscheinlichkeit?', 'Why no cancer probability?')}</button></p>
       <p class="mt-2 hidden rounded-lg bg-surface-2 p-3 text-xs leading-relaxed text-muted" data-why-text>${tr(
         'Eine „Krebs-Wahrscheinlichkeit“ hängt davon ab, wie häufig Krebs unter den fotografierten Stellen ist: In Hautkliniken ist jede zweite Stelle bösartig, unter allen Muttermalen im Alltag ist es ein winziger Bruchteil. Dieselbe Zahl wäre also je nach Situation falsch. Der Vergleich mit gutartigen Hautstellen bleibt dagegen in jeder Situation richtig.',
@@ -247,7 +248,7 @@ export async function mount(root, { query }) {
         <span class="text-xs text-muted">${fmtDate(result.date, true)} · ${tr('Modell', 'Model')} ${esc(meta.version)}</span>
       </div>
       <div class="grid gap-5 md:grid-cols-[minmax(0,320px)_1fr]">
-        <div class="space-y-3">
+        <div class="order-2 mx-auto w-full max-w-sm space-y-3 md:order-1 md:max-w-none">
           <div class="relative overflow-hidden rounded-2xl border border-line">
             <img src="${imgUrl}" alt="${tr('Analysierter Ausschnitt', 'Analyzed crop')}" class="block aspect-square w-full">
             <canvas class="pointer-events-none absolute inset-0 hidden size-full" data-heat></canvas>
@@ -257,7 +258,7 @@ export async function mount(root, { query }) {
           <div class="card p-4"><p class="text-sm font-semibold">${tr('Bildprüfung', 'Image check')}</p>
             <ul class="mt-2 space-y-1.5 text-sm text-muted">${qualityList(result.quality)}</ul></div>
         </div>
-        <div class="space-y-5">
+        <div class="order-1 space-y-5 md:order-2">
           ${unsure ? `<div class="card zone-grey p-5"><div class="flex gap-3">${icon('alert', 'size-6 shrink-0 text-zone-yellow')}
             <div><p class="font-semibold">${tr('Foto nicht zuverlässig beurteilbar', 'Photo cannot be assessed reliably')}</p>
             <p class="mt-1 text-sm text-muted">${tr('Das Bild unterscheidet sich stark von den Trainingsbildern. Für Ausschläge, Tattoos, Narben oder Fotos ohne einzelne Hautstelle ist das Modell nicht gemacht. Versuche eine Nahaufnahme einer einzelnen Stelle.',

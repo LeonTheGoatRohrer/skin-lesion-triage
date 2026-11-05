@@ -45,9 +45,21 @@ class TriageRule:
 
 
 def fit_rule(y: np.ndarray, s: np.ndarray, w: np.ndarray | None = None,
-             sensitivity: float = 0.95, specificity: float = 0.90) -> TriageRule:
+             sensitivity: float = 0.95, specificity: float = 0.90,
+             subgroups: tuple[tuple[np.ndarray, float], ...] = ()) -> TriageRule:
+    """``subgroups``: zusätzliche Mindest-Sensitivitäten, z. B. ((ist_melanom, 0.90),).
+
+    Die Gelb-Schwelle ist die strengste aller Bedingungen – ein Modell, das insgesamt 95 %
+    erreicht, aber Melanome öfter übersieht, bekommt so eine niedrigere Gelb-Schwelle.
+    """
     y, s = np.asarray(y), np.asarray(s)
     t_low = metrics.threshold_at_sensitivity(y, s, w, sensitivity)
+    for mask, target in subgroups:
+        mask = np.asarray(mask, dtype=bool)
+        if (mask & (y == 1)).sum() >= 10:
+            ym = np.where(mask, y, 0)  # nur die Untergruppe zählt als positiv
+            sel = mask | (y == 0)
+            t_low = min(t_low, metrics.threshold_at_sensitivity(ym[sel], s[sel], None if w is None else np.asarray(w)[sel], target))
     t_high = metrics.threshold_at_specificity(y, s, w, specificity)
     t_high = max(t_high, t_low)  # schwaches Modell: Gelb-Zone kann verschwinden, nie negativ werden
     ref = np.sort(s[y == 0]).astype(float).tolist()

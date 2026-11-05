@@ -44,6 +44,8 @@ class TrainConfig:
     seed: int = 0
     threads: int = 4
     val_max_tbp_benign: int = 6000  # Val je Epoche: Stichprobe der SLICE-3D-Gutartigen (Tempo)
+    use_extra: bool = False         # zusätzliche Dermoskopie-Bilder (Melanom-Schwerpunkt, data/extra.py)
+    group_balance: float = 0.0      # Diagnose-Gruppen innerhalb einer Schicht angleichen (0 … 1)
 
     @classmethod
     def from_json(cls, path: str | Path) -> "TrainConfig":
@@ -99,12 +101,14 @@ def train(cfg: TrainConfig, out_dir: Path, store: ImageStore | None = None) -> P
     torch.manual_seed(cfg.seed)
     g = torch.Generator().manual_seed(cfg.seed)
 
-    store = store or ImageStore.open()
+    store = store or ImageStore.open(use_extra=cfg.use_extra)
     cat = store.catalog
     doms = [d for d, f in cfg.domains.items() if f > 0]
     tr = cat.index[(cat.split == "train") & (cat.mask_bits > 0) & cat.domain.isin(doms)].to_numpy()
-    sampler = StratifiedSampler(cat, tr, cfg.domains, cfg.pos_fraction, seed=cfg.seed)
-    vidx = val_indices(cat, cfg.val_max_tbp_benign, cfg.seed)
+    sampler = StratifiedSampler(cat, tr, cfg.domains, cfg.pos_fraction, seed=cfg.seed,
+                                group_balance=cfg.group_balance)
+    # Validierung je Epoche immer auf dem Basis-Katalog (vergleichbar zwischen Läufen)
+    vidx = val_indices(cat[cat.source != "isic_derm"], cfg.val_max_tbp_benign, cfg.seed)
     rows_all = cat.row.to_numpy()
     aug_cfg = replace(AugConfig(), **{k: tuple(v) if isinstance(v, list) else v for k, v in cfg.aug.items()})
 

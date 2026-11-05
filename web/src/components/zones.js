@@ -39,8 +39,16 @@ export function zoneEvidence(z, stats) {
   const key = ['green', 'yellow', 'red'][z];
   const mal = pct(s.malignant[key]);
   const ben = pct(s.benign[key]);
+  const mel = s.melanoma ? pct(s.melanoma[key]) : null;
+  const melNote = mel == null ? '' : z === 0
+    ? tr(` Achtung: Auch ${mel} der Melanome landeten in Grün – Grün ist keine Garantie.`, ` Note: ${mel} of melanomas also ended up green – green is no guarantee.`)
+    : tr(` Von den Melanomen landeten ${mel} in dieser Farbe.`, ` Of the melanomas, ${mel} ended up in this color.`);
   const intro = tr('Im Test mit echten Smartphone-Fotos aus Brasilien (PAD-UFES-20, im Training nie gesehen)',
     'In our test on real smartphone photos from Brazil (PAD-UFES-20, never seen in training)');
+  return zoneEvidenceBase(z, intro, mal, ben) + melNote;
+}
+
+function zoneEvidenceBase(z, intro, mal, ben) {
   return [
     tr(`${intro} landeten <strong>${mal}</strong> der bösartigen und ${ben} der gutartigen Hautstellen in Grün.`,
       `${intro}, <strong>${mal}</strong> of malignant and ${ben} of benign lesions ended up green.`),

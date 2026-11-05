@@ -74,3 +74,16 @@ def test_triage_rule():
     p = rule.percentile(np.sort(s))
     assert np.all(np.diff(p) >= 0) and p[0] >= 0 and p[-1] <= 1
     assert set(np.unique(z)) <= {0, 1, 2}
+
+
+def test_subgroup_constraint_lowers_yellow_threshold():
+    rng = np.random.default_rng(3)
+    n = 3000
+    y = (rng.random(n) < 0.4).astype(int)
+    sub = (y == 1) & (rng.random(n) < 0.2)  # z. B. Melanome: schwerer zu erkennen
+    s = rng.normal(size=n) + 2.0 * y - 1.5 * sub
+    plain = triage.fit_rule(y, s)
+    strict = triage.fit_rule(y, s, subgroups=((sub, 0.9),))
+    assert strict.t_low < plain.t_low
+    sens_sub, _ = metrics.sens_spec(y[sub | (y == 0)], s[sub | (y == 0)], None, strict.t_low)
+    assert sens_sub >= 0.9

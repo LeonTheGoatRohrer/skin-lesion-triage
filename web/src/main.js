@@ -74,7 +74,7 @@ function footer() {
         <p class="mt-2">${icon('lock', 'size-3.5 inline -mt-0.5')} ${tr(
           'Fotos werden ausschließlich auf deinem Gerät verarbeitet und gespeichert.',
           'Photos are processed and stored on your device only.')}
-          · ${tr('Bilddaten fürs Training', 'Training images')}: ISIC Archive (MILK10k, SLICE-3D/ISIC 2024, PAD-UFES-20, MSK).
+          · ${tr('Bilddaten', 'Images')}: ISIC Archive – ${tr('Training', 'training')} MILK10k, SLICE-3D/ISIC 2024, MSK, ${tr('ISIC-Dermoskopie', 'ISIC dermoscopy')}; ${tr('externer Test', 'external test')} PAD-UFES-20.
           · <a class="underline" href="#/about">${tr('Details & Lizenzen', 'Details & licenses')}</a></p>
       </div>
     </footer>`);
@@ -109,8 +109,15 @@ window.addEventListener('themechange', render);
 window.addEventListener('themepreference', render);
 render();
 
+// Service Worker (offline) erst registrieren, wenn das Modell geladen ist – sonst laden Seite
+// und Service Worker die 9 MB gleichzeitig. Ohne Prüfen-Seite: kurz nach dem Laden.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
+  let done = false;
+  const reg = () => {
+    if (done) return;
+    done = true;
     navigator.serviceWorker.register('./sw.js').catch(() => { /* offline-Modus optional */ });
-  });
+  };
+  window.addEventListener('modelready', reg, { once: true });
+  window.addEventListener('load', () => setTimeout(reg, 15000));
 }

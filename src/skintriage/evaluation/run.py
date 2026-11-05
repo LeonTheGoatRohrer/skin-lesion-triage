@@ -39,8 +39,15 @@ def _cached_predict(run_dir: Path, tag: str, model, images, rows, size, tta) -> 
     return logits, emb
 
 
-def _block(y, s, w, groups, rule, with_ci: bool = True) -> dict:
-    """Kennzahlen für eine Teilmenge (y: 0/1/2; AUROC nur über 0/1)."""
+MEL_SENSITIVITY = 0.90
+
+
+def _block(y, s, w, groups, rule, with_ci: bool = True, gl=None) -> dict:
+    """Kennzahlen für eine Teilmenge (y: 0/1/2; AUROC nur über 0/1).
+
+    ``gl`` (feine Diagnose-Gruppe je Bild) ergänzt Melanom-Kennzahlen: Ampel-Verteilung der
+    Melanome und AUROC Melanom gegen Nävus – die Kernfrage bei Muttermalen.
+    """
     b = np.isin(y, [0, 1])
     out = {"n": int(len(y)), "n_malignant": int((y == 1).sum()), "n_benign": int((y == 0).sum()),
            "n_precursor": int((y == 2).sum())}
@@ -58,6 +65,15 @@ def _block(y, s, w, groups, rule, with_ci: bool = True) -> dict:
         keep = np.unique(np.linspace(0, len(fpr) - 1, min(len(fpr), 120)).astype(int))
         out["roc"] = {"fpr": np.round(fpr[keep], 4).tolist(), "tpr": np.round(tpr[keep], 4).tolist()}
     out["zones"] = zone_table(rule, y, s, w)
+    if gl is not None:
+        mel, nev = gl == 0, gl == 4
+        if mel.sum():
+            z = rule.zone(s[mel])
+            out["melanoma"] = {"n": int(mel.sum()), **{k: float((z == i).mean()) for i, k in enumerate(("green", "yellow", "red"))}}
+            if nev.sum():
+                yy = np.r_[np.ones(mel.sum()), np.zeros(nev.sum())]
+                out["melanoma"]["auroc_vs_nevus"] = metrics.auroc(yy, np.r_[s[mel], s[nev]])
+                out["melanoma"]["n_nevus"] = int(nev.sum())
     return out
 
 
@@ -85,7 +101,8 @@ def evaluate_run(run_dir: Path, splits=("val",), tta: bool = True, store: ImageS
     vy = cat.binary.to_numpy()[vidx]
     vw = cat.weight.to_numpy()[vidx]
     clin = (cat.domain.to_numpy()[vidx] == "clinical") & np.isin(vy, [0, 1])
-    rule = fit_rule(vy[clin], vs[clin], vw[clin])
+    is_mel = cat.group_label.to_numpy()[vidx][clin] == 0
+    rule = fit_rule(vy[clin], vs[clin], vw[clin], subgroups=((is_mel, MEL_SENSITIVITY),))
 
     # --- OOD: PCA auf Trainings-Embeddings (Stichprobe je Domäne) ----------------------------
     rng = np.random.default_rng(config.SEED)
@@ -99,7 +116,8 @@ def evaluate_run(run_dir: Path, splits=("val",), tta: bool = True, store: ImageS
     np.savez(run_dir / "ood.npz", mean=ood.mean, components=ood.components, variances=ood.variances,
              residual_var=ood.residual_var, threshold=ood.threshold)
 
-    results = {"run": run_dir.name, "config": cfg, "tta": tta, "rule": rule.to_dict(),
+    results = {"run": run_dir.name, "config": cfg, "tta": tta,
+               "rule": {**rule.to_dict(), "melanoma_sensitivity": MEL_SENSITIVITY},
                "ood": ood.to_dict(), "splits": {}}
     for split in splits:
         idx, logits, emb = (vidx, vlog, vemb) if split == "val" else preds_for(split)
@@ -110,12 +128,13 @@ def evaluate_run(run_dir: Path, splits=("val",), tta: bool = True, store: ImageS
         for dom in config.DOMAINS:
             m = (sub.domain == dom).to_numpy()
             if m.any():
-                res["domains"][dom] = _block(y[m], s[m], w[m], groups[m], rule)
+                res["domains"][dom] = _block(y[m], s[m], w[m], groups[m], rule, gl=sub.group_label.to_numpy()[m])
                 res["domains"][dom]["ood_rate"] = float((ood.score(emb[m]) > ood.threshold).mean())
         for src in sorted(sub.source.unique()):
             m = (sub.source == src).to_numpy() & (sub.domain == "clinical").to_numpy()
             if m.sum() >= 20:
-                res["sources"][src] = _block(y[m], s[m], w[m], groups[m], rule, with_ci=False)
+                res["sources"][src] = _block(y[m], s[m], w[m], groups[m], rule, with_ci=False,
+                                             gl=sub.group_label.to_numpy()[m])
         # Hauttyp (Fitzpatrick), wo annotiert
         fz = sub.fitzpatrick_skin_type.map(_fitz_bucket).to_numpy()
         res["fitzpatrick"] = {}
@@ -173,6 +192,10 @@ def summarize(res: dict) -> dict:
                         "ood_rate": round(b.get("ood_rate", float("nan")), 3)}
             if "auroc_ci" in b:
                 out[key]["auroc_ci"] = [round(v, 3) for v in b["auroc_ci"]]
+            if "melanoma" in b:
+                mm = b["melanoma"]
+                out[key]["melanoma_green"] = round(mm["green"], 3)
+                out[key]["mel_vs_nev_auroc"] = round(mm.get("auroc_vs_nevus", float("nan")), 3)
         if "groups" in r:
             out[f"{split}/groups_bal_acc"] = round(r["groups"]["balanced_accuracy"], 3)
     if "scin" in res:

@@ -28,6 +28,18 @@ def test_onnx_matches_pytorch(tmp_path):
     assert check_parity(wm, path, 64, n=3) < 1e-3
 
 
+def test_fp16_weights_halve_size_and_keep_results(tmp_path):
+    from skintriage.export.onnx_export import compress_weights_fp16
+
+    torch.manual_seed(0)
+    net = TriageNet("mobilenetv3_large_100", pretrained=False).eval()
+    ood = fit_ood(np.random.default_rng(0).normal(size=(300, net.feat_dim)), k=8)
+    p32 = export_onnx(net, ood, tmp_path / "m32.onnx", 64)
+    p16 = compress_weights_fp16(p32, tmp_path / "m16.onnx")
+    assert p16.stat().st_size < 0.6 * p32.stat().st_size
+    assert check_parity(WebModel(net, ood).eval(), p16, 64, n=3) < 0.05
+
+
 def test_webmodel_tta_equals_python_tta():
     """Die TTA im ONNX-Graph muss exakt der TTA in models.infer.predict entsprechen."""
     torch.manual_seed(1)

@@ -19,10 +19,13 @@ const URL = `http://127.0.0.1:${PORT}/`;
 
 const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort', '--host', '127.0.0.1'],
   { cwd: join(root, 'web'), stdio: 'pipe' });
-await new Promise((resolve, reject) => {
-  const t = setTimeout(() => reject(new Error('preview startet nicht')), 20000);
-  server.stdout.on('data', (d) => { if (String(d).includes(String(PORT))) { clearTimeout(t); resolve(); } });
-});
+server.stdout.resume();
+server.stderr.resume();
+for (let i = 0; ; i++) {
+  try { if ((await fetch(URL)).ok) break; } catch { /* noch nicht bereit */ }
+  if (i > 60) { server.kill(); throw new Error('vite preview startet nicht'); }
+  await new Promise((r) => setTimeout(r, 500));
+}
 
 const errors = [];
 const browser = await chromium.launch();
@@ -38,16 +41,19 @@ try {
   await run('desktop', { viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 }, async (page) => {
     await page.goto(`${URL}#/check`);
     await page.getByText(/Modell bereit/).waitFor({ timeout: 60000 });
+    await page.waitForTimeout(400);
     await page.screenshot({ path: join(shots, 'check-start.png') });
     // Beispiel 3 (Basalzellkarzinom) analysieren
     await page.locator('[data-example]').nth(2).click();
     await page.locator('[data-crop] canvas').waitFor();
+    await page.waitForTimeout(400);
     await page.waitForTimeout(400);
     await page.screenshot({ path: join(shots, 'check-crop.png') });
     await page.locator('[data-go]').click();
     await page.getByText(/Ergebnis/).first().waitFor({ timeout: 60000 });
     await page.locator('[data-occ]').click();
     await page.getByText(/Heatmap ein\/aus/).waitFor({ timeout: 60000 });
+    await page.waitForTimeout(400);
     await page.screenshot({ path: join(shots, 'check-result.png'), fullPage: true });
     const zone = await page.locator('.zone-bg .text-xl').first().textContent();
     const percent = await page.locator('[data-result] .text-2xl').first().textContent();
@@ -56,7 +62,7 @@ try {
     await page.locator('input[name="name"]').fill('Beispiel Rücken');
     await page.locator('select[name="site"]').selectOption('back');
     await page.getByRole('button', { name: /Speichern/ }).click();
-    await page.getByText('Gespeichert.').waitFor();
+    await page.getByText('Gespeichert.').waitFor({ timeout: 60000 });
     // zweites Foto derselben Stelle (Beispiel 1) für den Verlauf
     await page.goto(`${URL}#/diary`);
     await page.locator('a[href^="#/diary/"]').first().click();
@@ -65,27 +71,33 @@ try {
     await page.locator('[data-go]').click();
     await page.getByText(/Ergebnis/).first().waitFor({ timeout: 60000 });
     await page.getByRole('button', { name: /Speichern/ }).click();
-    await page.getByText('Gespeichert.').waitFor();
+    await page.getByText('Gespeichert.').waitFor({ timeout: 60000 });
     await page.getByRole('link', { name: /Zum Tagebuch/ }).click();
     await page.getByText(/Vergleich/).first().waitFor();
+    await page.waitForTimeout(400);
     await page.screenshot({ path: join(shots, 'diary-spot.png'), fullPage: true });
     await page.goto(`${URL}#/diary`);
+    await page.waitForTimeout(400);
     await page.screenshot({ path: join(shots, 'diary-list.png') });
     await page.goto(`${URL}#/abcde`);
     await page.locator('input[name="A"]').check();
+    await page.waitForTimeout(400);
     await page.screenshot({ path: join(shots, 'abcde.png'), fullPage: true });
     await page.goto(`${URL}#/about`);
     await page.getByText(/Die wichtigsten Zahlen/).waitFor();
+    await page.waitForTimeout(400);
     await page.screenshot({ path: join(shots, 'about.png'), fullPage: true });
   });
 
   await run('mobile', { ...devices['iPhone 13'] }, async (page) => {
     await page.goto(`${URL}#/check`);
     await page.getByText(/Modell bereit/).waitFor({ timeout: 60000 });
+    await page.waitForTimeout(400);
     await page.screenshot({ path: join(shots, 'mobile-start.png') });
     await page.locator('[data-example]').nth(3).click();
     await page.locator('[data-go]').click();
     await page.getByText(/Ergebnis/).first().waitFor({ timeout: 60000 });
+    await page.waitForTimeout(400);
     await page.screenshot({ path: join(shots, 'mobile-result.png') });
     const zone = await page.locator('.zone-bg .text-xl').first().textContent();
     console.log(`Beispiel Melanom (mobil): ${zone?.trim()}`);
@@ -98,6 +110,7 @@ try {
     await page.locator('[data-example]').nth(1).click();
     await page.locator('[data-go]').click();
     await page.getByText(/Result/).first().waitFor({ timeout: 60000 });
+    await page.waitForTimeout(400);
     await page.screenshot({ path: join(shots, 'result-dark-en.png'), fullPage: true });
   });
 } finally {

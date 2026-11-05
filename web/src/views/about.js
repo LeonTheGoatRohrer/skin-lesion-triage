@@ -19,7 +19,8 @@ function domName(d) {
 }
 
 function sourceName(s) {
-  return { milk10k: 'MILK10k', slice3d: 'SLICE-3D (ISIC 2024)', pad_ufes_20: 'PAD-UFES-20', msk: 'MSK', anonymous: tr('Anonym', 'Anonymous'), hiba: 'HIBA' }[s] || s;
+  return { milk10k: 'MILK10k', slice3d: 'SLICE-3D (ISIC 2024)', pad_ufes_20: 'PAD-UFES-20', msk: 'MSK', anonymous: tr('Anonym', 'Anonymous'), hiba: 'HIBA',
+    isic_derm: tr('ISIC-Archiv, Dermoskopie (Melanom-Schwerpunkt)', 'ISIC archive, dermoscopy (melanoma focus)') }[s] || s;
 }
 
 function ci(b) {
@@ -58,7 +59,7 @@ function datasetTable(m) {
     a.images += r.images; a.malignant += r.malignant; a.benign += r.benign; a.precursor += r.precursor; a.splits.add(r.split);
     agg.set(key, a);
   }
-  const lic = { milk10k: 'CC BY-NC 4.0', slice3d: 'CC BY / CC BY-NC / CC0', pad_ufes_20: 'CC BY 4.0', msk: 'CC BY / CC0', anonymous: 'CC0', hiba: 'CC BY' };
+  const lic = { milk10k: 'CC BY-NC 4.0', slice3d: 'CC BY / CC BY-NC / CC0', pad_ufes_20: 'CC BY 4.0', msk: 'CC BY / CC0', anonymous: 'CC0', hiba: 'CC BY', isic_derm: 'CC BY / CC BY-NC / CC0' };
   const body = [...agg.values()].sort((a, b) => b.images - a.images).map((a) => `<tr class="border-t border-line">
     <td class="py-2 pr-3 font-medium">${esc(sourceName(a.source))}</td>
     <td class="py-2 pr-3">${esc(domName(a.domain))}</td>
@@ -69,9 +70,9 @@ function datasetTable(m) {
     <td class="py-2 pr-3">${a.splits.has('external') ? tr('nur Test (extern)', 'test only (external)') : 'Train / Val / Test'}</td>
     <td class="py-2 text-xs text-muted">${lic[a.source] || ''}</td></tr>`).join('');
   return `<div class="card overflow-x-auto p-4"><table class="w-full min-w-[640px] text-sm">
-    <thead class="text-left text-xs text-muted"><tr><th class="pb-2">${tr('Quelle', 'Source')}</th><th>${tr('Bildart', 'Image type')}</th>
-      <th class="text-right">${tr('Bilder', 'Images')}</th><th class="text-right">${tr('bösartig', 'malignant')}</th><th class="text-right">${tr('gutartig', 'benign')}</th>
-      <th class="text-right">${tr('Vorstufe', 'precursor')}</th><th>${tr('Verwendung', 'Use')}</th><th>${tr('Lizenz', 'License')}</th></tr></thead>
+    <thead class="text-left text-xs text-muted"><tr><th class="pb-2 pr-3">${tr('Quelle', 'Source')}</th><th class="pr-3">${tr('Bildart', 'Image type')}</th>
+      <th class="pr-3 text-right">${tr('Bilder', 'Images')}</th><th class="pr-3 text-right">${tr('bösartig', 'malignant')}</th><th class="pr-3 text-right">${tr('gutartig', 'benign')}</th>
+      <th class="pr-3 text-right">${tr('Vorstufe', 'precursor')}</th><th class="pr-3">${tr('Verwendung', 'Use')}</th><th>${tr('Lizenz', 'License')}</th></tr></thead>
     <tbody>${body}</tbody></table>
     <p class="mt-3 text-xs text-muted">${tr(
       'SLICE-3D enthält rund 400 000 gutartige Ausschnitte; verwendet wird eine Zufallsstichprobe, jedes Bild zählt in der Auswertung mit dem Kehrwert seiner Ziehungswahrscheinlichkeit. Bilder derselben Person oder derselben Hautstelle liegen immer im selben Split.',
@@ -84,6 +85,31 @@ function zoneParts(z) {
     { value: z.yellow, color: 'var(--c-yellow)', label: tr('Gelb', 'Yellow') },
     { value: z.red, color: 'var(--c-red)', label: tr('Rot', 'Red') },
   ];
+}
+
+function sourceTable(m) {
+  const rows = [];
+  for (const [split, label] of [['test', tr('Interner Test', 'Internal test')], ['external', tr('Extern', 'External')]]) {
+    const src = m.splits[split]?.sources || {};
+    for (const [k, b] of Object.entries(src)) {
+      if (b.auroc == null) continue;
+      rows.push(`<tr class="border-t border-line"><td class="py-2 pr-3">${label}</td><td class="py-2 pr-3 font-medium">${esc(sourceName(k))}</td>
+        <td class="py-2 pr-3 text-right tabular">${fmt(b.n_malignant)} / ${fmt(b.n_benign)}</td>
+        <td class="py-2 pr-3 text-right tabular">${fmt(b.auroc, 3)}</td>
+        <td class="py-2 pr-3 text-right tabular">${b.melanoma?.auroc_vs_nevus != null ? fmt(b.melanoma.auroc_vs_nevus, 3) : '–'}
+          <span class="text-muted">${b.melanoma ? `(${b.melanoma.n}/${b.melanoma.n_nevus ?? 0})` : ''}</span></td>
+        <td class="py-2 text-right tabular">${b.melanoma ? pct(b.melanoma.green, 0) : '–'}</td></tr>`);
+    }
+  }
+  if (!rows.length) return '';
+  return `<div class="card overflow-x-auto p-4"><h3 class="font-semibold">${tr('Kamerafotos je Quelle – und Melanome', 'Camera photos per source – and melanomas')}</h3>
+    <p class="mt-1 text-xs text-muted">${tr(
+      'Die AUROC über alle Kamerafotos mischt Quellen mit sehr unterschiedlichem Krebsanteil; innerhalb einer Quelle ist sie die strengere Zahl. Melanom gegen Nävus ist die Kernfrage bei Muttermalen.',
+      'AUROC over all camera photos mixes sources with very different cancer rates; within one source it is the stricter number. Melanoma vs. nevus is the key question for moles.')}</p>
+    <table class="mt-3 w-full min-w-[600px] text-sm"><thead class="text-left text-xs text-muted"><tr><th class="pb-2">Split</th><th>${tr('Quelle', 'Source')}</th>
+      <th class="text-right">${tr('bösartig / gutartig', 'malignant / benign')}</th><th class="text-right">AUROC</th>
+      <th class="text-right">${tr('Melanom vs. Nävus', 'Melanoma vs. nevus')}</th><th class="text-right">${tr('Melanome in Grün', 'Melanomas green')}</th></tr></thead>
+    <tbody>${rows.join('')}</tbody></table></div>`;
 }
 
 export async function mount(root) {
@@ -131,7 +157,9 @@ export async function mount(root) {
     if (z.malignant) zoneRows.push({ label: `${tr('Interner Test, bösartig', 'Internal test, malignant')}`, n: z.malignant.n, parts: zoneParts(z.malignant) });
     if (z.benign) zoneRows.push({ label: `${tr('Interner Test, gutartig', 'Internal test, benign')}`, n: z.benign.n, parts: zoneParts(z.benign) });
   }
+  if (test.clinical?.melanoma) zoneRows.push({ label: tr('Interner Test, nur Melanome', 'Internal test, melanomas only'), n: test.clinical.melanoma.n, parts: zoneParts(test.clinical.melanoma) });
   if (extZones.malignant) zoneRows.push({ label: tr('PAD-UFES-20 (Handy), bösartig', 'PAD-UFES-20 (phone), malignant'), n: extZones.malignant.n, parts: zoneParts(extZones.malignant) });
+  if (ext.melanoma) zoneRows.push({ label: tr('PAD-UFES-20, nur Melanome', 'PAD-UFES-20, melanomas only'), n: ext.melanoma.n, parts: zoneParts(ext.melanoma) });
   if (extZones.precursor) zoneRows.push({ label: tr('PAD-UFES-20, aktinische Keratose (Vorstufe)', 'PAD-UFES-20, actinic keratosis (precursor)'), n: extZones.precursor.n, parts: zoneParts(extZones.precursor) });
   if (extZones.benign) zoneRows.push({ label: tr('PAD-UFES-20 (Handy), gutartig', 'PAD-UFES-20 (phone), benign'), n: extZones.benign.n, parts: zoneParts(extZones.benign) });
 
@@ -162,10 +190,11 @@ export async function mount(root) {
 
     ${section(tr('Von Foto zu Ampel', 'From photo to traffic light'), pipeline())}
 
-    ${section(tr('Die wichtigsten Zahlen', 'Key numbers'), `<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    ${section(tr('Die wichtigsten Zahlen', 'Key numbers'), `<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
       ${tile(fmt(test.clinical?.auroc, 3), tr('AUROC interner Test, Kamerafotos', 'AUROC internal test, camera photos'), tr('Patienten/Läsionen nie im Training', 'patients/lesions never in training'))}
       ${tile(fmt(ext.auroc, 3), tr('AUROC echte Handyfotos (extern)', 'AUROC real phone photos (external)'), tr('PAD-UFES-20, Brasilien – komplett ungesehen', 'PAD-UFES-20, Brazil – completely unseen'))}
       ${tile(pct(flagged), tr('bösartige Handyfotos in Gelb oder Rot', 'malignant phone photos in yellow or red'), tr('Ziel aus der Validierung: 95 %', 'target from validation: 95%'))}
+      ${tile(ext.melanoma ? pct(ext.melanoma.yellow + ext.melanoma.red) : '–', tr('Melanome (Handy) in Gelb oder Rot', 'melanomas (phone) in yellow or red'), tr(`n = ${ext.melanoma?.n ?? '–'}; Ziel aus der Validierung: 90 %`, `n = ${ext.melanoma?.n ?? '–'}; target from validation: 90%`))}
       ${tile(pct(extZones.benign?.red), tr('gutartige Handyfotos fälschlich Rot', 'benign phone photos wrongly red'), tr('Ziel aus der Validierung: ≤ 10 %', 'target from validation: ≤ 10%'))}
     </div>`)}
 
@@ -183,6 +212,7 @@ export async function mount(root) {
           <div class="mt-4">${stackedBars(zoneRows)}</div></div>
       </div>
       ${metricTable}
+      ${sourceTable(m)}
       <div class="grid gap-6 lg:grid-cols-2">
         ${fzRows.length ? `<div class="card p-5"><h3 class="font-semibold">${tr('Hauttyp (PAD-UFES-20)', 'Skin type (PAD-UFES-20)')}</h3>
           <p class="mt-1 text-xs text-muted">${tr('AUROC je Fitzpatrick-Gruppe (bösartig/gutartig). Dunkle Hauttypen sind in allen Daten selten – dort ist das Modell kaum geprüft.', 'AUROC per Fitzpatrick group (malignant/benign). Dark skin types are rare in all data – the model is barely tested there.')}</p>

@@ -67,6 +67,36 @@ def export_onnx(net: nn.Module, ood: OODModel, path: Path, size: int) -> Path:
     return path
 
 
+def compress_weights_fp16(src: Path, dst: Path, min_elems: int = 1024) -> Path:
+    """Große Gewichte als float16 speichern (halbe Downloadgröße), gerechnet wird weiter in float32.
+
+    Jede komprimierte Gewichtsmatrix bekommt einen Cast-Knoten nach float32; onnxruntime faltet
+    diese beim Laden einmalig. Die OOD-Parameter bleiben float32 (Differenzen großer Normen).
+    """
+    import onnx
+    from onnx import TensorProto, helper, numpy_helper
+
+    m = onnx.load(str(src))
+    g = m.graph
+    casts, new_inits = [], []
+    for init in list(g.initializer):
+        n = int(np.prod(init.dims)) if len(init.dims) else 1
+        if init.data_type != TensorProto.FLOAT or n < min_elems or "ood" in init.name:
+            continue
+        arr = numpy_helper.to_array(init).astype(np.float16)
+        name16 = f"{init.name}__fp16"
+        new_inits.append(numpy_helper.from_array(arr, name16))
+        casts.append(helper.make_node("Cast", [name16], [init.name], to=TensorProto.FLOAT, name=f"{init.name}__cast"))
+        g.initializer.remove(init)
+    g.initializer.extend(new_inits)
+    nodes = list(g.node)
+    del g.node[:]
+    g.node.extend(casts + nodes)
+    onnx.checker.check_model(m)
+    onnx.save(m, str(dst))
+    return dst
+
+
 def check_parity(wm_torch: nn.Module, onnx_path: Path, size: int, n: int = 6, seed: int = 0) -> float:
     """Maximale absolute Abweichung zwischen PyTorch und onnxruntime (sollte < 1e-3 sein)."""
     import onnxruntime as ort
