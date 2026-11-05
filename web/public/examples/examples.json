@@ -1,0 +1,46 @@
+[
+ {
+  "file": "ISIC_7717503.jpg",
+  "isic_id": "ISIC_7717503",
+  "de": "Muttermal (Nävus), gutartig",
+  "en": "Nevus (mole), benign",
+  "confirm": "Konsens von Fachleuten anhand des Bildes",
+  "confirm_en": "expert consensus from the image",
+  "attribution": "Federal University of Espírito Santo (UFES)",
+  "license": "CC-BY",
+  "crop": 0
+ },
+ {
+  "file": "ISIC_7348419.jpg",
+  "isic_id": "ISIC_7348419",
+  "de": "Seborrhoische Keratose (Alterswarze), gutartig",
+  "en": "Seborrheic keratosis, benign",
+  "confirm": "Konsens von Fachleuten anhand des Bildes",
+  "confirm_en": "expert consensus from the image",
+  "attribution": "Federal University of Espírito Santo (UFES)",
+  "license": "CC-BY",
+  "crop": 0
+ },
+ {
+  "file": "ISIC_5878293.jpg",
+  "isic_id": "ISIC_5878293",
+  "de": "Basalzellkarzinom (weißer Hautkrebs)",
+  "en": "Basal cell carcinoma",
+  "confirm": "histologisch gesichert",
+  "confirm_en": "confirmed by histopathology",
+  "attribution": "Federal University of Espírito Santo (UFES)",
+  "license": "CC-BY",
+  "crop": 0
+ },
+ {
+  "file": "ISIC_9681078.jpg",
+  "isic_id": "ISIC_9681078",
+  "de": "Melanom (schwarzer Hautkrebs)",
+  "en": "Melanoma",
+  "confirm": "histologisch gesichert",
+  "confirm_en": "confirmed by histopathology",
+  "attribution": "Federal University of Espírito Santo (UFES)",
+  "license": "CC-BY",
+  "crop": 0
+ }
+]

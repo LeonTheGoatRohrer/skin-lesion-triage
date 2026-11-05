@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skintriage"
+version = "0.1.0"
+description = "Hautstellen-Triage aus Fotos: Lern- und Portfolio-Projekt auf ISIC-Daten (kein Medizinprodukt)"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Leon Rohrer" }]
+requires-python = ">=3.11"
+dependencies = [
+  "numpy", "pandas", "pyarrow", "pillow", "scikit-learn",
+  "torch", "torchvision", "timm", "onnx", "onnxruntime",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "matplotlib"]
+
+[project.scripts]
+skintriage = "skintriage.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

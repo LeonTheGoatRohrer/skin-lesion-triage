@@ -1,0 +1,9 @@
+{
+  "name": "e2_no_derm",
+  "backbone": "mobilenetv3_large_100",
+  "image_size": 128,
+  "epochs": 10,
+  "samples_per_epoch": 16000,
+  "domains": {"clinical": 0.55, "tbp": 0.45, "dermoscopic": 0.0},
+  "pos_fraction": {"clinical": 0.5, "tbp": 0.25}
+}

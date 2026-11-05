@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Hautstellen-Check: Foto einer Hautstelle aufnehmen, ein KI-Modell im Browser schätzt die Auffälligkeit ein (Ampel). Lern- und Portfolio-Projekt auf ISIC-Daten – kein Medizinprodukt, ersetzt keinen Arztbesuch." />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0d1016" media="(prefers-color-scheme: dark)" />
+    <title>Hautstellen-Check · Prototyp</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="./icons/icon.svg" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <script>
+      // Gespeichertes Farbschema vor dem ersten Rendern anwenden (kein Hell/Dunkel-Flackern).
+      (function () {
+        var pref = 'system';
+        try { pref = localStorage.getItem('skin-theme') || 'system'; } catch (e) {}
+        var dark = pref === 'dark' || (pref === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.classList.add('dark');
+        var lang = null;
+        try { lang = localStorage.getItem('skin-lang'); } catch (e) {}
+        document.documentElement.lang = lang === 'en' ? 'en' : 'de';
+      })();
+    </script>
+  </head>
+  <body>
+    <a href="#main" class="skip-link">Zum Inhalt springen</a>
+    <div id="app"></div>
+    <noscript>Diese App benötigt JavaScript. · This app requires JavaScript.</noscript>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
