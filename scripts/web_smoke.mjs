@@ -17,13 +17,15 @@ mkdirSync(shots, { recursive: true });
 const PORT = 4179;
 const URL = `http://127.0.0.1:${PORT}/`;
 
+// eigene Prozessgruppe, damit beim Beenden auch der von npx gestartete Vite-Prozess endet
 const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort', '--host', '127.0.0.1'],
-  { cwd: join(root, 'web'), stdio: 'pipe' });
+  { cwd: join(root, 'web'), stdio: 'pipe', detached: true });
+const stopServer = () => { try { process.kill(-server.pid, 'SIGTERM'); } catch { /* schon beendet */ } };
 server.stdout.resume();
 server.stderr.resume();
 for (let i = 0; ; i++) {
   try { if ((await fetch(URL)).ok) break; } catch { /* noch nicht bereit */ }
-  if (i > 60) { server.kill(); throw new Error('vite preview startet nicht'); }
+  if (i > 60) { stopServer(); throw new Error('vite preview startet nicht'); }
   await new Promise((r) => setTimeout(r, 500));
 }
 
@@ -115,7 +117,7 @@ try {
   });
 } finally {
   await browser.close();
-  server.kill();
+  stopServer();
 }
 
 if (errors.length) {

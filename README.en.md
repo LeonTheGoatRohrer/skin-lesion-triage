@@ -13,7 +13,31 @@ photo never leaves the device.
 ![Result view: traffic light, conspicuousness, similarity to diagnosis groups, heatmap](docs/screenshots/check-result.png)
 
 <!-- RESULTS:START -->
-(results follow)
+## Results
+
+Model `e4_melanoma` (MobileNetV3-Large, 128 px, ONNX 9.0 MB).
+Configuration chosen on validation only; test and external test were evaluated **once** at the end.
+
+| Dataset | malignant / benign | AUROC [95% CI] | pAUC80 | Sensitivity yellow+red | Specificity (not red) |
+|---|---:|---:|---:|---:|---:|
+| Internal test · camera photos | 552 / 436 | 0.936 [0.907–0.955] | 0.161 | 98.7% | 94.0% |
+| Internal test · 3D TBP crops | 42 / 20000 | 0.945 [0.915–0.972] | 0.159 | 88.1% | 99.2% |
+| Internal test · dermoscopy | 547 / 186 | 0.873 [0.842–0.908] | 0.128 | 99.5% | 90.3% |
+| **External · PAD-UFES-20 (smartphone)** | 1089 / 479 | 0.916 [0.903–0.931] | 0.138 | 98.9% | 95.8% |
+
+**Traffic light on real smartphone photos** (PAD-UFES-20, Brazil, never seen in training; thresholds
+taken unchanged from validation):
+
+| PAD-UFES-20 | n | green | yellow | red |
+|---|---:|---:|---:|---:|
+| malignant | 1089 | 1.1% | 37.0% | 61.9% |
+| actinic keratosis (precursor) | 730 | 4.7% | 63.4% | 31.9% |
+| benign | 479 | 30.1% | 65.8% | 4.2% |
+
+- **Ranking transfers:** AUROC internal 0.936 → external 0.916 (different clinic, cameras, country).
+- **Thresholds transfer worse:** benign photos kept green internally 66.5%, on the foreign phone photos only 30.1% – most end up yellow. The model is more “nervous” with unfamiliar cameras. Thresholds were deliberately not re-tuned on PAD-UFES-20, otherwise the test would no longer be external.
+- **Melanomas:** internally 5.1% green (n = 79), externally 51 of 52 yellow/red; AUROC melanoma vs. nevus 0.772 internal, 0.854 external.
+- **“Cannot be assessed” rarely triggers:** only 0.5% of SCIN phone photos (mostly rashes) are rejected. The app is meant for single spots; for rashes the result is meaningless.
 <!-- RESULTS:END -->
 
 ## Data

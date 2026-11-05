@@ -164,7 +164,11 @@ export async function mount(root) {
   if (extZones.benign) zoneRows.push({ label: tr('PAD-UFES-20 (Handy), gutartig', 'PAD-UFES-20 (phone), benign'), n: extZones.benign.n, parts: zoneParts(extZones.benign) });
 
   const fz = m.splits.external?.fitzpatrick || {};
-  const fzRows = Object.entries(fz).map(([k, b]) => ({ label: `Fitzpatrick ${k}`, value: b.auroc, note: `(${b.n_malignant}/${b.n_benign})`, color: 'var(--c-dom-external)' }));
+  const fzRows = Object.entries(fz).map(([k, b]) => {
+    const few = (b.n_malignant ?? 0) < 10 || (b.n_benign ?? 0) < 10;
+    return { label: `Fitzpatrick ${k}`, value: few ? null : b.auroc,
+      note: `(${b.n_malignant}/${b.n_benign})${few ? tr(' – zu wenige Bilder', ' – too few images') : ''}`, color: 'var(--c-dom-external)' };
+  });
   const groups = m.splits.external?.groups;
   const groupNames = lang === 'en' ? m.groups_en : m.groups;
   const groupRows = groups ? groups.recall.map((r, i) => (r == null ? null : {
@@ -177,8 +181,11 @@ export async function mount(root) {
 
   const exps = (m.experiments || []).map((e) => `<tr class="border-t border-line ${e.run === m.run ? 'font-semibold' : ''}">
     <td class="py-2 pr-3">${esc(e.run)}${e.run === m.run ? ' ★' : ''}</td><td class="py-2 pr-3">${esc(e.backbone)} @ ${e.image_size}px</td>
-    <td class="py-2 pr-3 text-xs">${esc(typeof e.domains === 'string' ? e.domains : Object.entries(e.domains).filter(([, v]) => v > 0).map(([k]) => k).join(' + '))}</td>
-    <td class="py-2 pr-3 text-right tabular">${fmt(e.val_clinical_auroc, 3)}</td><td class="py-2 pr-3 text-right tabular">${fmt(e.val_tbp_auroc, 3)}</td>
+    <td class="py-2 pr-3 text-xs">${esc(typeof e.domains === 'string' ? e.domains : Object.entries(e.domains).filter(([, v]) => v > 0).map(([k]) => k).join(' + '))}${e.use_extra ? ' + ISIC-Derm.' : ''}${e.group_balance ? ` · ${tr('Diagnose-Balance', 'diagnosis balance')}` : ''}</td>
+    <td class="py-2 pr-3 text-right tabular">${fmt(e.val_clinical_auroc, 3)}</td>
+    <td class="py-2 pr-3 text-right tabular">${e.val_clinical_spec_at_low != null ? pct(e.val_clinical_spec_at_low, 1) : '–'}</td>
+    <td class="py-2 pr-3 text-right tabular">${fmt(e.val_clinical_mel_vs_nev, 3)}</td>
+    <td class="py-2 pr-3 text-right tabular">${fmt(e.val_tbp_auroc, 3)}</td>
     <td class="py-2 text-right tabular">${fmt(e.val_dermoscopic_auroc, 3)}</td></tr>`).join('');
 
   const view = el(`<div class="fade-in space-y-10">
@@ -195,7 +202,7 @@ export async function mount(root) {
       ${tile(fmt(ext.auroc, 3), tr('AUROC echte Handyfotos (extern)', 'AUROC real phone photos (external)'), tr('PAD-UFES-20, Brasilien – komplett ungesehen', 'PAD-UFES-20, Brazil – completely unseen'))}
       ${tile(pct(flagged), tr('bösartige Handyfotos in Gelb oder Rot', 'malignant phone photos in yellow or red'), tr('Ziel aus der Validierung: 95 %', 'target from validation: 95%'))}
       ${tile(ext.melanoma ? pct(ext.melanoma.yellow + ext.melanoma.red) : '–', tr('Melanome (Handy) in Gelb oder Rot', 'melanomas (phone) in yellow or red'), tr(`n = ${ext.melanoma?.n ?? '–'}; Ziel aus der Validierung: 90 %`, `n = ${ext.melanoma?.n ?? '–'}; target from validation: 90%`))}
-      ${tile(pct(extZones.benign?.red), tr('gutartige Handyfotos fälschlich Rot', 'benign phone photos wrongly red'), tr('Ziel aus der Validierung: ≤ 10 %', 'target from validation: ≤ 10%'))}
+      ${tile(pct(extZones.benign?.green), tr('gutartige Handyfotos bleiben Grün', 'benign phone photos stay green'), tr(`intern ${pct(test.clinical?.zones?.benign?.green)} – die Schwellen übertragen sich schlecht`, `internal ${pct(test.clinical?.zones?.benign?.green)} – thresholds transfer poorly`))}
     </div>`)}
 
     ${section(tr('Daten', 'Data'), `<p class="max-w-3xl text-sm leading-relaxed text-muted">${tr(
@@ -223,8 +230,18 @@ export async function mount(root) {
       </div>
       ${m.scin ? `<div class="card p-5 text-sm"><h3 class="font-semibold">${tr('Realitätscheck: Ausschläge & Co. (Google SCIN)', 'Reality check: rashes etc. (Google SCIN)')}</h3>
         <p class="mt-1 text-muted">${tr(
-          `Von ${fmt(m.scin.n)} Handyfotos aus den USA – überwiegend Ekzeme, Kontaktallergien, Insektenstiche – wurden <strong>${pct(m.scin.ood_rate)}</strong> als „nicht beurteilbar“ erkannt (bei normalen Validierungsbildern: ~1 %). Der Rest wird trotzdem bewertet – das Modell kennt keine Ausschläge und ist dafür nicht gedacht.`,
-          `Of ${fmt(m.scin.n)} phone photos from the US – mostly eczema, contact allergies, insect bites – <strong>${pct(m.scin.ood_rate)}</strong> were recognized as “cannot be assessed” (normal validation images: ~1%). The rest is still scored – the model does not know rashes and is not meant for them.`)}</p></div>` : ''}
+          `Von ${fmt(m.scin.n)} Handyfotos aus den USA – überwiegend Ekzeme, Kontaktallergien, Insektenstiche – wurden nur <strong>${pct(m.scin.ood_rate, 1)}</strong> als „nicht beurteilbar“ abgewiesen; bei normalen Validierungsbildern ist es ~1 % (so eingestellt). Die Prüfung erkennt Ausschläge also praktisch nicht: Sie werden wie Hautstellen bewertet, obwohl das Modell dafür nicht gemacht ist. Ein eigener Klassifikator „einzelne Hautstelle ja/nein“ wäre der nächste Schritt.`,
+          `Of ${fmt(m.scin.n)} phone photos from the US – mostly eczema, contact allergies, insect bites – only <strong>${pct(m.scin.ood_rate, 1)}</strong> were rejected as “cannot be assessed”; for normal validation images it is ~1% (by design). So the check practically does not catch rashes: they are scored like spots although the model is not made for them. A dedicated “single spot yes/no” classifier would be the next step.`)}</p></div>` : ''}
+      ${ext.auroc != null ? `<div class="card border-l-4 p-5 text-sm leading-relaxed" style="border-left-color: var(--c-accent)">
+        <h3 class="font-semibold">${tr('Was der externe Test zeigt', 'What the external test shows')}</h3>
+        <ul class="mt-2 list-disc space-y-1.5 pl-5 text-muted">
+          <li>${tr(`<strong class="text-fg">Die Rangfolge überträgt sich:</strong> AUROC ${fmt(test.clinical?.auroc, 3)} intern, ${fmt(ext.auroc, 3)} auf fremden Handyfotos.`,
+            `<strong class="text-fg">Ranking transfers:</strong> AUROC ${fmt(test.clinical?.auroc, 3)} internal, ${fmt(ext.auroc, 3)} on foreign phone photos.`)}</li>
+          <li>${tr(`<strong class="text-fg">Die Schwellen übertragen sich nicht:</strong> Intern bleiben ${pct(test.clinical?.zones?.benign?.green)} der gutartigen Fotos grün, auf den Handyfotos nur ${pct(extZones.benign?.green)}. Das Modell ist bei unbekannten Kameras „nervöser“ – im Alltag hieße das viel Gelb. Die Schwellen wurden absichtlich nicht nachträglich angepasst.`,
+            `<strong class="text-fg">Thresholds do not transfer:</strong> internally ${pct(test.clinical?.zones?.benign?.green)} of benign photos stay green, on the phone photos only ${pct(extZones.benign?.green)}. The model is more “nervous” with unfamiliar cameras – in everyday use that would mean a lot of yellow. Thresholds were deliberately not re-tuned afterwards.`)}</li>
+          <li>${tr(`<strong class="text-fg">Melanome:</strong> ${ext.melanoma ? `${Math.round(ext.melanoma.n * (1 - ext.melanoma.green))} von ${ext.melanoma.n}` : '–'} Melanomen auf Handyfotos landeten in Gelb oder Rot. Bei nur ${ext.melanoma?.n ?? '–'} Fällen ist das eine grobe Schätzung.`,
+            `<strong class="text-fg">Melanomas:</strong> ${ext.melanoma ? `${Math.round(ext.melanoma.n * (1 - ext.melanoma.green))} of ${ext.melanoma.n}` : '–'} melanomas on phone photos ended up yellow or red. With only ${ext.melanoma?.n ?? '–'} cases this is a rough estimate.`)}</li>
+        </ul></div>` : ''}
     `)}
 
     ${section(tr('Training', 'Training'), `<div class="grid gap-6 lg:grid-cols-2">
@@ -238,8 +255,11 @@ export async function mount(root) {
           <li>${tr('Auswahl nur per Validierung; Test und externer Test wurden einmal am Ende ausgewertet', 'Selection on validation only; test and external test were evaluated once at the end')}</li>
         </ul></div></div>
       ${exps ? `<div class="card overflow-x-auto p-4"><h3 class="mb-2 font-semibold">${tr('Experimente (nur Validierung)', 'Experiments (validation only)')}</h3>
-        <table class="w-full min-w-[560px] text-sm"><thead class="text-left text-xs text-muted"><tr><th class="pb-2">Run</th><th>${tr('Netz', 'Network')}</th><th>${tr('Bildarten', 'Image types')}</th>
-        <th class="text-right">${tr('Kamera', 'Camera')}</th><th class="text-right">3D-TBP</th><th class="text-right">${tr('Dermoskopie', 'Dermoscopy')}</th></tr></thead><tbody>${exps}</tbody></table></div>` : ''}`)}
+        <table class="w-full min-w-[720px] text-sm"><thead class="text-left text-xs text-muted"><tr><th class="pb-2 pr-3">Run</th><th class="pr-3">${tr('Netz', 'Network')}</th><th class="pr-3">${tr('Bildarten', 'Image types')}</th>
+        <th class="pr-3 text-right">AUROC ${tr('Kamera', 'camera')}</th><th class="pr-3 text-right">${tr('Grün-Anteil gutartig*', 'benign kept green*')}</th>
+        <th class="pr-3 text-right">${tr('Melanom vs. Nävus', 'Melanoma vs. nevus')}</th><th class="pr-3 text-right">AUROC 3D-TBP</th><th class="text-right">AUROC ${tr('Dermoskopie', 'dermoscopy')}</th></tr></thead><tbody>${exps}</tbody></table>
+        <p class="mt-2 text-xs text-muted">${tr('* Spezifität an der Gelb-Schwelle (95 % aller bösartigen und 90 % der Melanome erfasst) – das vorab festgelegte Auswahlkriterium.',
+          '* Specificity at the yellow threshold (95% of all malignant and 90% of melanomas caught) – the pre-registered selection criterion.')}</p></div>` : ''}`)}
 
     ${section(tr('Grenzen – bitte lesen', 'Limitations – please read'), `<div class="card p-5 text-sm leading-relaxed text-muted"><ul class="list-disc space-y-1.5 pl-5">
       <li>${tr('<strong class="text-fg">Kein Medizinprodukt.</strong> Eine App, die Menschen sagt, ob sie zum Arzt sollen, wäre in der EU ein Medizinprodukt (MDR, mindestens Klasse IIa) und bräuchte eine klinische Prüfung.', '<strong class="text-fg">Not a medical device.</strong> An app telling people whether to see a doctor would be a medical device in the EU (MDR, at least class IIa) and would need clinical evaluation.')}</li>

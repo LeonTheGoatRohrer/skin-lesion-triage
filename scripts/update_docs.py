@@ -74,6 +74,34 @@ def results(de: bool) -> str:
     zhead = ("| PAD-UFES-20 | n | Grün | Gelb | Rot |\n|---|---:|---:|---:|---:|" if de
              else "| PAD-UFES-20 | n | green | yellow | red |\n|---|---:|---:|---:|---:|")
     scin = M.get("scin") or {}
+    tz = test["clinical"]["zones"]
+    tm = test["clinical"].get("melanoma", {})
+    em = ext.get("melanoma", {})
+    mel_found = round(em.get("n", 0) * (1 - em.get("green", 0)))
+    bullets_de = "\n".join([
+        f"- **Die Rangfolge überträgt sich:** AUROC intern {f(test['clinical']['auroc'])} → extern {f(ext['auroc'])} "
+        "(andere Klinik, andere Kameras, anderes Land).",
+        f"- **Die Schwellen übertragen sich schlechter:** Gutartige Fotos in Grün intern {p(tz['benign']['green'])}, "
+        f"auf den fremden Handyfotos nur {p(z['benign']['green'])} – die meisten landen in Gelb. Das Modell ist bei fremden "
+        "Kameras „nervöser“. Die Schwellen wurden bewusst nicht an PAD-UFES-20 angepasst, sonst wäre der Test nicht mehr extern.",
+        f"- **Melanome:** intern {p(tm.get('green'))} in Grün (n = {tm.get('n', '–')}), extern {mel_found} von {em.get('n', '–')} "
+        f"in Gelb/Rot; AUROC Melanom vs. Nävus {f(tm.get('auroc_vs_nevus'))} intern, {f(em.get('auroc_vs_nevus'))} extern.",
+        f"- **„Nicht beurteilbar“ greift kaum:** Nur {p(scin.get('ood_rate'))} der SCIN-Handyfotos (meist Ausschläge) werden "
+        "abgewiesen. Die App ist für einzelne Hautstellen gedacht; bei Ausschlägen ist das Ergebnis bedeutungslos.",
+        "- Details, Experimente und Diagramme: Seite **So funktioniert’s** der App und [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md).",
+    ])
+    bullets_en = "\n".join([
+        f"- **Ranking transfers:** AUROC internal {f(test['clinical']['auroc'], 3, False)} → external {f(ext['auroc'], 3, False)} "
+        "(different clinic, cameras, country).",
+        f"- **Thresholds transfer worse:** benign photos kept green internally {p(tz['benign']['green'], 1, False)}, on the foreign "
+        f"phone photos only {p(z['benign']['green'], 1, False)} – most end up yellow. The model is more “nervous” with unfamiliar "
+        "cameras. Thresholds were deliberately not re-tuned on PAD-UFES-20, otherwise the test would no longer be external.",
+        f"- **Melanomas:** internally {p(tm.get('green'), 1, False)} green (n = {tm.get('n', '–')}), externally {mel_found} of "
+        f"{em.get('n', '–')} yellow/red; AUROC melanoma vs. nevus {f(tm.get('auroc_vs_nevus'), 3, False)} internal, "
+        f"{f(em.get('auroc_vs_nevus'), 3, False)} external.",
+        f"- **“Cannot be assessed” rarely triggers:** only {p(scin.get('ood_rate'), 1, False)} of SCIN phone photos (mostly rashes) "
+        "are rejected. The app is meant for single spots; for rashes the result is meaningless.",
+    ])
     if de:
         return f"""## Ergebnisse
 
@@ -88,11 +116,7 @@ Validierung unverändert übernommen):
 {zhead}
 {chr(10).join(zr)}
 
-- Die AUROC sinkt von {f(test['clinical']['auroc'], 3)} (interne Kamerafotos) auf {f(ext['auroc'], 3)} (fremde Smartphone-Fotos) –
-  das ist der erwartete Effekt einer anderen Klinik, Kamera und Bevölkerung, und genau deshalb gibt es den externen Test.
-- „Nicht beurteilbar“: {p(scin.get('ood_rate'), 1)} der SCIN-Handyfotos (meist Ausschläge) werden abgewiesen,
-  bei den Validierungsbildern ~1 % (per Konstruktion).
-- Details, Experimente und Diagramme: Seite **So funktioniert’s** der App und [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md).
+{bullets_de}
 """
     return f"""## Results
 
@@ -107,25 +131,27 @@ taken unchanged from validation):
 {zhead}
 {chr(10).join(zr)}
 
-- AUROC drops from {f(test['clinical']['auroc'], 3, False)} (internal camera photos) to {f(ext['auroc'], 3, False)} (foreign smartphone photos) –
-  the expected effect of a different clinic, camera and population, which is why the external test exists.
-- “Cannot be assessed”: {p(scin.get('ood_rate'), 1, False)} of SCIN phone photos (mostly rashes) are rejected, ~1% of validation images (by construction).
+{bullets_en}
 """
 
 
 def experiments() -> str:
-    rows = ["| Run | Netz | Auflösung | Bildarten im Training | Val-AUROC Kamera | Val-AUROC 3D-TBP | Val-pAUC80 3D-TBP | Val-AUROC Dermoskopie |",
-            "|---|---|---:|---|---:|---:|---:|---:|"]
+    rows = ["| Run | Bildarten im Training | Val-AUROC Kamera | **Spez. an Gelb-Schwelle (Kamera)** | AUROC Melanom vs. Nävus (Kamera) | Val-AUROC 3D-TBP | Val-pAUC80 3D-TBP | Val-AUROC Dermoskopie |",
+            "|---|---|---:|---:|---:|---:|---:|---:|"]
     for e in M.get("experiments", []):
         doms = e["domains"] if isinstance(e["domains"], str) else " + ".join(k for k, v in e["domains"].items() if v > 0)
+        if e.get("use_extra"):
+            doms += " + ISIC-Dermoskopie (Melanom-Fokus)"
+        if e.get("group_balance"):
+            doms += f", Diagnose-Balancierung {e['group_balance']}"
         star = " ★" if e["run"] == M["run"] else ""
-        rows.append(f"| {e['run']}{star} | {e['backbone']} | {e['image_size']} | {doms} | {f(e['val_clinical_auroc'])} | "
-                    f"{f(e['val_tbp_auroc'])} | {f(e['val_tbp_pauc80'])} | {f(e['val_dermoscopic_auroc'])} |")
+        rows.append(f"| {e['run']}{star} | {doms} | {f(e['val_clinical_auroc'])} | {f(e.get('val_clinical_spec_at_low'))} | "
+                    f"{f(e.get('val_clinical_mel_vs_nev'))} | {f(e['val_tbp_auroc'])} | {f(e['val_tbp_pauc80'])} | {f(e['val_dermoscopic_auroc'])} |")
     hist = M.get("history", [])
     h = ["| Epoche | Loss | Val-AUROC Kamera | Val-AUROC 3D-TBP | Val-AUROC Dermoskopie |", "|---:|---:|---:|---:|---:|"]
     for r in hist:
         h.append(f"| {r['epoch']} | {f(r['loss'])} | {f(r.get('clinical_auroc'))} | {f(r.get('tbp_auroc'))} | {f(r.get('dermoscopic_auroc'))} |")
-    return ("## Läufe (nur Validierung, mit 4-facher TTA)\n\n" + "\n".join(rows)
+    return ("## Läufe (nur Validierung, mit 4-facher TTA; MobileNetV3-Large, 128 px)\n\n" + "\n".join(rows)
             + f"\n\n★ = ausgewähltes Modell. Verlauf von `{M['run']}` (Validierung je Epoche, ohne TTA, "
               "SLICE-3D-Gutartige als 6 000er-Stichprobe):\n\n" + "\n".join(h))
 

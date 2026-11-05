@@ -67,7 +67,11 @@ def experiments_table(runs_dir: Path) -> list[dict]:
                      "val_clinical_auroc": s.get("val/clinical", {}).get("auroc"),
                      "val_tbp_auroc": s.get("val/tbp", {}).get("auroc"),
                      "val_tbp_pauc80": s.get("val/tbp", {}).get("pauc80"),
-                     "val_dermoscopic_auroc": s.get("val/dermoscopic", {}).get("auroc")})
+                     "val_dermoscopic_auroc": s.get("val/dermoscopic", {}).get("auroc"),
+                     "val_clinical_spec_at_low": s.get("val/clinical", {}).get("spec@t_low"),
+                     "val_clinical_mel_vs_nev": s.get("val/clinical", {}).get("mel_vs_nev_auroc"),
+                     "use_extra": r["config"].get("use_extra", False),
+                     "group_balance": r["config"].get("group_balance", 0.0)})
     base = runs_dir.parent / "baseline" / "linear_probe.json"
     if base.exists():
         b = json.loads(base.read_text())
